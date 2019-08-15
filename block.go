@@ -2,16 +2,20 @@ package main
 
 import (
 	"bytes"
-	"crypto/sha256"
+	"encoding/binary"
 	"fmt"
+	"os"
 	"time"
 )
 
 type Block struct {
-	Timestamp     string //timeNow
-	Data          []byte //blockData
-	PrevBlockHash []byte //prevs hash
-	Hash          []byte // hash of this
+	Version       int64
+	PrevBlockHash []byte
+	Hash          []byte
+	TimeStamp     int64
+	Difficulty    int64
+	Nonce         int64 //ここまで、 Heads
+	Data          []byte
 }
 
 type Blockchain struct {
@@ -19,26 +23,40 @@ type Blockchain struct {
 }
 
 func NewBlockchain() *Blockchain { // (1)Create a Blockchain
-	return &Blockchain{[]*Block{NewDefaultBlock()}} //add block into blockchain
+	return &Blockchain{[]*Block{NewGenesisBlock()}} //add block into blockchain
 }
 
-func NewDefaultBlock() *Block { //(2)create a default block 最初のBlockビットコインでの始まりは”Genesis Block”っていうBlock
-	return NewBlock("Jin xinzhe", []byte{})
+func NewGenesisBlock() *Block {
+	return NewBlock("Genesis Block", []byte{})
 }
 
 func NewBlock(data string, prevBlockHash []byte) *Block { //create block
-	block := &Block{time.Now().String(), []byte(data), prevBlockHash, []byte{}}
-	block.SetHash()
-	return block
+	block := Block{Version: 1,
+		PrevBlockHash: prevBlockHash,
+		TimeStamp:     time.Now().Unix(),
+		Difficulty:    difficulty,
+		Nonce:         0,
+		Data:          []byte(data)}
+	//block.SetHash()
+	pow := NewProofOfWork(&block)
+
+	nonce, hash := pow.Min()
+	block.Nonce = nonce
+	block.Hash = hash
+	return &block
+}
+func IntToByte(num int64) []byte {
+	var buffer bytes.Buffer
+	err := binary.Write(&buffer, binary.BigEndian, num)
+	CheckErr("IntToByte", err)
+	return buffer.Bytes()
 }
 
-func (b *Block) SetHash() {
-	timestamp := []byte(b.Timestamp) //[]byte type Cast
-
-	//func Join(s [][]byte, sep []byte) []byte
-	headers := bytes.Join([][]byte{b.PrevBlockHash, b.Data, timestamp}, []byte{}) //link and create new []byte slice
-	hash := sha256.Sum256(headers)                                                //hashvalue
-	b.Hash = hash[:]                                                              //hashslice
+func CheckErr(pos string, err error) {
+	if err != nil {
+		fmt.Println("pos,err", pos, err)
+		os.Exit(1)
+	}
 }
 
 func (bc *Blockchain) AddBlock(data string) {
@@ -54,9 +72,13 @@ func main() {
 	bc.AddBlock("Joao Amaral")
 
 	for _, block := range bc.blocks {
+		fmt.Printf("Version: %d\n", block.Version)
 		fmt.Printf("Prev. hash: %x\n", block.PrevBlockHash)
+		fmt.Printf("TimeStamp : %d\n", block.TimeStamp)
 		fmt.Printf("Data: %s\n", block.Data)
 		fmt.Printf("Hash: %x\n", block.Hash)
+		fmt.Printf("Bits: %d\n", block.Difficulty)
+		fmt.Printf("Nonce: %d\n", block.Nonce)
 		fmt.Println()
 	}
 }
